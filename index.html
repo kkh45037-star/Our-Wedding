@@ -1131,77 +1131,72 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUI8FeQ8o5nIHLEOL_X
     return `
       <div class="guest-row">
         <span class="guest-name">${name}</span>
-        <button class="rsvp-choice answer-btn" data-guest="${name}" data-answer="Yes">Yes</button>
-        <button class="rsvp-choice answer-btn" data-guest="${name}" data-answer="No">No</button>
+        <button type="button" class="rsvp-choice answer-btn" data-guest="${name}" data-answer="Attending">Yes</button>
+        <button type="button" class="rsvp-choice answer-btn" data-guest="${name}" data-answer="Not Attending">No</button>
       </div>`;
   }
 
   function submitButtonHTML(){
-    return `<button class="rsvp-choice primary" id="submitRSVP" style="margin-top:25px;">Submit RSVP</button>`;
+    return `<button type="button" class="rsvp-choice primary" id="submitRSVP" style="margin-top:25px;">Submit RSVP</button>`;
   }
 
   function renderGeneric(){
     greeting.innerHTML = "Will you be attending our wedding?";
     buttonsWrap.innerHTML = `
-      <button class="rsvp-choice primary" id="genericAccept">❤️ Joyfully Accept</button>
-      <button class="rsvp-choice" id="genericDecline">🤍 Regretfully Decline</button>
+      <button type="button" class="rsvp-choice primary" id="genericAccept">❤️ Joyfully Accept</button>
+      <button type="button" class="rsvp-choice" id="genericDecline">🤍 Regretfully Decline</button>
     `;
   }
 
   function renderForGuest(data){
-    function renderForGuest(data){
-    console.log("Received:", data);
+    if (!data || data.error) {
+      renderGeneric();
+      return;
+    }
 
-    alert("Type = " + data.type);
-console.log("TYPE =", data.type);
-console.log("TYPE LENGTH =", data.type.length);
-console.log("EQUALS SINGLE?", data.type === "Single");
-    if(data.type === "Single"){
-        alert("Matched Single!");
-        greeting.innerHTML = `<strong>${data.guest1}</strong>, will you be attending our wedding?`;
-        buttonsWrap.innerHTML = guestRow(data.guest1) + submitButtonHTML();
+    const type = String(data.type || "").trim().toLowerCase();
 
-    } else if(data.type === "Couple"){
-        alert("Matched Couple!");
-        greeting.innerHTML = `<strong>${data.guest1} & ${data.guest2}</strong>, will you be attending our wedding?`;
-        buttonsWrap.innerHTML =
-            guestRow(data.guest1) +
-            guestRow(data.guest2) +
-            submitButtonHTML();
+    if(type === "single"){
+      greeting.innerHTML = `<strong>${data.guest1}</strong>, will you be attending our wedding?`;
+      buttonsWrap.innerHTML = guestRow(data.guest1) + submitButtonHTML();
 
-    } else if(data.type === "Family"){
-        alert("Matched Family!");
-        const people = (data.members || "")
-            .split(",")
-            .map(p => p.trim())
-            .filter(Boolean);
+    } else if(type === "couple"){
+      greeting.innerHTML = `<strong>${data.guest1} & ${data.guest2}</strong>, will you be attending our wedding?`;
+      buttonsWrap.innerHTML =
+        guestRow(data.guest1) +
+        guestRow(data.guest2) +
+        submitButtonHTML();
 
-        greeting.innerHTML = `<strong>${data.guest1} Family</strong>, who will be attending?`;
-        buttonsWrap.innerHTML =
-            people.map(guestRow).join("") +
-            submitButtonHTML();
+    } else if(type === "family"){
+      const people = (data.members || "")
+        .split(",")
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      const displayName = data.guest1 ? `${data.guest1} Family` : "Family";
+      greeting.innerHTML = `<strong>${displayName}</strong>, who will be attending?`;
+      buttonsWrap.innerHTML =
+        people.map(guestRow).join("") +
+        submitButtonHTML();
 
     } else {
-        alert("Going to renderGeneric()");
-        renderGeneric();
+      renderGeneric();
     }
-}
   }
 
- if(guestID){
+  if(guestID){
     fetch(SCRIPT_URL + "?id=" + encodeURIComponent(guestID))
       .then(response => response.json())
       .then(data => {
-          console.log("Guest data:", data);
-          renderForGuest(data);
+        renderForGuest(data);
       })
       .catch(err => {
-          console.error("Could not load guest data", err);
-          renderGeneric();
+        console.error("Could not load guest data", err);
+        renderGeneric();
       });
-} else {
+  } else {
     renderGeneric();
-}
+  }
 
   function showThankYou(message){
     stage1.style.display = "none";
@@ -1209,19 +1204,24 @@ console.log("EQUALS SINGLE?", data.type === "Single");
     finalText.innerHTML = message;
   }
 
-function submitAnswers(){
+  function submitAnswers(){
     const responseSummary = Object.entries(answers)
       .map(([g, a]) => `${g}: ${a}`)
       .join(", ");
 
+    if (Object.keys(answers).length === 0) {
+      alert("Please select Yes or No before submitting.");
+      return;
+    }
+
     showThankYou("Thank you! We've recorded your response.");
 
-    if (!guestID) return;
+    if(!guestID) return;
 
-    // Send payload using standard urlencoded post to prevent CORS flight errors
-    const payload = new URLSearchParams();
-    payload.append("id", guestID);
-    payload.append("response", responseSummary);
+    // Use URLSearchParams to avoid CORS preflight blocks from Google Apps Script
+    const formData = new URLSearchParams();
+    formData.append("id", guestID);
+    formData.append("response", responseSummary);
 
     fetch(SCRIPT_URL, {
       method: "POST",
@@ -1229,9 +1229,27 @@ function submitAnswers(){
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      body: payload.toString()
+      body: formData.toString()
     }).catch(err => console.error("RSVP submit failed", err));
   }
+
+  document.addEventListener("click", function(e){
+    if(e.target.classList.contains("answer-btn")){
+      const guest = e.target.dataset.guest;
+      const answer = e.target.dataset.answer;
+      answers[guest] = answer;
+
+      const row = e.target.parentElement;
+      row.querySelectorAll(".answer-btn").forEach(b => b.classList.remove("primary"));
+      e.target.classList.add("primary");
+      return;
+    }
+    if(e.target.id === "submitRSVP"){ submitAnswers(); return; }
+    if(e.target.id === "genericAccept"){ answers["Guest"] = "Attending"; submitAnswers(); return; }
+    if(e.target.id === "genericDecline"){ answers["Guest"] = "Not Attending"; submitAnswers(); return; }
+  });
+})();
+
 function copyGift(text){
   navigator.clipboard.writeText(text);
   alert("Copied!");
