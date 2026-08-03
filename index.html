@@ -1209,39 +1209,29 @@ console.log("EQUALS SINGLE?", data.type === "Single");
     finalText.innerHTML = message;
   }
 
-  function submitAnswers(){
+function submitAnswers(){
     const responseSummary = Object.entries(answers)
       .map(([g, a]) => `${g}: ${a}`)
       .join(", ");
 
     showThankYou("Thank you! We've recorded your response.");
 
-    if(!guestID) return;
+    if (!guestID) return;
+
+    // Send payload using standard urlencoded post to prevent CORS flight errors
+    const payload = new URLSearchParams();
+    payload.append("id", guestID);
+    payload.append("response", responseSummary);
 
     fetch(SCRIPT_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ id: guestID, response: responseSummary })
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: payload.toString()
     }).catch(err => console.error("RSVP submit failed", err));
   }
-
-  document.addEventListener("click", function(e){
-    if(e.target.classList.contains("answer-btn")){
-      const guest = e.target.dataset.guest;
-      const answer = e.target.dataset.answer;
-      answers[guest] = answer;
-
-      const row = e.target.parentElement;
-      row.querySelectorAll(".answer-btn").forEach(b => b.classList.remove("primary"));
-      e.target.classList.add("primary");
-      return;
-    }
-    if(e.target.id === "submitRSVP"){ submitAnswers(); return; }
-    if(e.target.id === "genericAccept"){ answers["Guest"] = "Yes"; submitAnswers(); return; }
-    if(e.target.id === "genericDecline"){ answers["Guest"] = "No"; submitAnswers(); return; }
-  });
-})();
-
 function copyGift(text){
   navigator.clipboard.writeText(text);
   alert("Copied!");
