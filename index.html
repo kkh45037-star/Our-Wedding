@@ -1153,7 +1153,9 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUI8FeQ8o5nIHLEOL_X
     console.log("Received:", data);
 
     alert("Type = " + data.type);
-
+console.log("TYPE =", data.type);
+console.log("TYPE LENGTH =", data.type.length);
+console.log("EQUALS SINGLE?", data.type === "Single");
     if(data.type === "Single"){
         alert("Matched Single!");
         greeting.innerHTML = `<strong>${data.guest1}</strong>, will you be attending our wedding?`;
